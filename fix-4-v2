@@ -1,0 +1,82 @@
+/**
+* Create shortcode to use block outside of CS
+* Usage: [global_block block="123"]
+*/
+
+function global_blocks_output($atts) {
+
+    if ( !empty($atts['block']) && is_string( get_post_status( $atts['block']) ) ) {
+        $content  = get_post_field('post_content', $atts['block'], 'raw');
+        $custom   = global_block_get_cornerstone_page_settings( $atts['block'] );
+
+        // Theownplay - Custom Stuff to the original function
+        $res = '';
+        global $post;
+        $post = get_post( $atts['block'], OBJECT );
+        setup_postdata($post);
+        ob_start();
+        do_action('template_redirect');
+
+        global $cs_element_shortcode_data;
+
+        //The core content magic
+        $content = str_replace( '[cs_content]', '', $content );
+        $content = str_replace( '[/cs_content]', '', $content );
+
+        //v2 fix (Important - use the space for affecting just params)
+        //Remove $count - 2 te remove cs_content and row
+        $values = explode(' _id="', $content);
+        if(!empty($values) && is_array($values)){
+
+            //Sort the data earlier
+            uksort($cs_element_shortcode_data, function($a,$b){
+                return strnatcmp($a,$b);
+            });
+
+            $count = intval(str_replace('el', '', key($cs_element_shortcode_data)));
+            foreach($values as $value){
+
+                //get_number
+                $number_arr = explode('"', $value, 2);
+                $number = $number_arr[0];
+                //Make sure we're just using id's (not for example the beginning of the string)
+                if(is_numeric($number)){
+
+                    //Make sure we're ignoring classic elements
+                    $_type = $cs_element_shortcode_data['el' . $count]['_type'];
+                    if(strpos($_type, 'classic:') !== false){
+                        $count++;
+                    }
+
+                    $content = str_replace(' _id="' . $number . '"', ' _id="' . $count . '"', $content);
+                    $count++;
+                }
+            }
+        }
+        //End of the core content magic
+
+        echo do_shortcode($content);
+
+        $css = trim( preg_replace( '!/\*[^*]*\*+([^/][^*]*\*+)*/!' , '' , $custom['custom_css']  ) );
+
+        if ( apply_filters( '_cornerstone_custom_css', true ) && !empty($css) ) {
+            echo '<style class="global-block-custom-page-css" type="text/css">';
+            echo $css;
+            echo '</style>';
+        }
+        if ( apply_filters( '_cornerstone_custom_page_js', true ) && !empty($custom['custom_js_mini']) ){
+            echo '<script class="global-block-custom-page-js" type="text/javascript">';
+            echo $custom['custom_js_mini'];
+            echo '</script>';
+        }
+
+        $res = ob_get_clean();
+        wp_reset_postdata();
+        //End Theownplay stuff
+
+
+        return $res;
+    } else {
+        return '<div style="text-align: center; border: 1px dotted #333;"><h2 class="mvl">' . __('Select your global block.', 'global-blocks-cornerstone') . '</h2></div>';
+    }
+}
